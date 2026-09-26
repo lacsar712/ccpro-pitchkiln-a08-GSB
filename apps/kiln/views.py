@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Prefetch
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -8,8 +8,20 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .forms import OpenCookRunForm, PhaseChangeForm, ResinLotForm, SoftPointProbeForm
-from .models import CookRun, FireHearth, ResinLot
+from .forms import (
+    BlendLineFormSet,
+    BlendTicketForm,
+    OpenCookRunForm,
+    PhaseChangeForm,
+    ResinLotForm,
+    SoftPointProbeForm,
+)
+from .models import BlendTicket, CookRun, FireHearth, ResinLot
+from .services.blend_rules import (
+    close_blend_ticket,
+    lot_blend_status_map,
+    open_blend_ticket,
+)
 from .services.floor_rules import change_hearth_phase
 
 
@@ -207,5 +219,73 @@ def resin_lot_feed(request):
             }
         )
 
-    lots = ResinLot.objects.all()[:40]
+    lots = list(ResinLot.objects.all()[:40])
+    blend_status = lot_blend_status_map(lots)
+    for lot in lots:
+        state = blend_status.get(lot.pk)
+        lot.blend_state = state[0] if state else None
+        lot.blend_ticket = state[1] if state else None
     return render(request, "resin/feed.html", {"lots": lots, "form": form})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def blend_ticket_board(request):
+    """拼配单看板：开单（单头 + 明细行）与未结案/已结案列表。"""
+    if request.method == "POST":
+        form = BlendTicketForm(request.POST)
+        formset = BlendLineFormSet(request.POST)
+        if form.is_valid() and formset.is_valid():
+            lines = [
+                (f.cleaned_data["resinLot"], f.cleaned_data["countedKg"])
+                for f in formset.forms
+                if f.cleaned_data.get("resinLot")
+            ]
+            try:
+                ticket = open_blend_ticket(
+                    blend_date=form.cleaned_data["blendDate"],
+                    target_grade=form.cleaned_data["targetGrade"],
+                    planned_total_kg=form.cleaned_data["plannedTotalKg"],
+                    opened_by=request.user,
+                    lines=lines,
+                )
+                messages.success(
+                    request,
+                    f"拼配单 #{ticket.pk} 已开单，明细来脂批已锁定，待主管结案",
+                )
+                return redirect("blend_ticket_board")
+            except ValidationError as exc:
+                for msg in exc.messages:
+                    messages.error(request, msg)
+        else:
+            messages.error(request, "开单失败，请检查单头与明细行输入")
+    else:
+        form = BlendTicketForm()
+        formset = BlendLineFormSet()
+
+    tickets = BlendTicket.objects.select_related("openedBy", "closedBy").prefetch_related(
+        "lines__resinLot"
+    )[:40]
+    return render(
+        request,
+        "blend/board.html",
+        {"tickets": tickets, "form": form, "formset": formset},
+    )
+
+
+@login_required
+@require_POST
+def blend_ticket_close(request, pk):
+    """主管结案：复核同源核验后写结案时刻，明细来脂批解锁。"""
+    ticket = get_object_or_404(BlendTicket, pk=pk)
+    try:
+        close_blend_ticket(ticket, request.user)
+        messages.success(
+            request, f"拼配单 #{ticket.pk} 已结案，明细来脂批解除锁定、可挂灶开值守"
+        )
+    except PermissionDenied as exc:
+        messages.error(request, str(exc))
+    except ValidationError as exc:
+        for msg in exc.messages:
+            messages.error(request, msg)
+    return redirect("blend_ticket_board")

@@ -26,6 +26,15 @@
         <span class="mono">{{ lot.arrivalKg }} kg</span>
         <span>{{ lot.receivedAt|date:"Y-m-d H:i" }}</span>
       </div>
+      {% if lot.blend_state == "locked" %}
+      <div class="lot-blend">
+        <span class="badge blend-locked">拼配锁定 · 未结案单 #{{ lot.blend_ticket.pk }}</span>
+      </div>
+      {% elif lot.blend_state == "released" %}
+      <div class="lot-blend">
+        <span class="badge blend-released">拼配已结案 · 可开灶</span>
+      </div>
+      {% endif %}
     </li>
     {% empty %}
     <li class="lot-card empty">暂无来脂批</li>

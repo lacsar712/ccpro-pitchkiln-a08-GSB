@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import CookRun, FireHearth, ResinLot, SoftPointProbe
+from .models import (
+    BlendTicket,
+    BlendTicketLine,
+    CookRun,
+    FireHearth,
+    ResinLot,
+    SoftPointProbe,
+)
 
 
 @admin.register(ResinLot)
@@ -34,3 +41,24 @@ class CookRunAdmin(admin.ModelAdmin):
 class SoftPointProbeAdmin(admin.ModelAdmin):
     list_display = ("id", "run", "sampledAt", "softPointC", "samplerName")
     search_fields = ("samplerName",)
+
+
+class BlendTicketLineInline(admin.TabularInline):
+    model = BlendTicketLine
+    extra = 0
+
+
+@admin.register(BlendTicket)
+class BlendTicketAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "blendDate",
+        "targetGrade",
+        "plannedTotalKg",
+        "openedBy",
+        "closedAt",
+        "closedBy",
+    )
+    list_filter = ("blendDate",)
+    search_fields = ("targetGrade", "openedBy__username")
+    inlines = [BlendTicketLineInline]

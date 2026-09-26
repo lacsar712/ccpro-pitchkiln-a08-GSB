@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}脂液拼配{% endblock %}
+{% block content %}
+<section class="feed-head">
+  <div>
+    <h1>脂液拼配单</h1>
+    <p class="board-sub">未结案锁定来脂批 · 主管结案后方可挂灶开值守</p>
+  </div>
+  <a class="back-link" href="{% url 'home' %}">← 回值守看板</a>
+</section>
+
+<div class="feed-layout">
+  <form method="post" class="lot-intake stack-form">
+    {% csrf_token %}
+    <h2>开拼配单</h2>
+    {{ form.as_p }}
+    <h3 class="form-sub">明细行 · 计入千克合计须精确等于计划总重</h3>
+    {{ formset.management_form }}
+    {{ formset.non_form_errors }}
+    {% for f in formset.forms %}
+    <div class="blend-line">
+      {{ f.as_p }}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn-ember">开单并锁定来脂批</button>
+    <p class="hint">开单后明细来脂批即被锁定：结案前不得再进其他未结案单，也不得挂灶开值守。</p>
+  </form>
+
+  <ol class="ticket-feed">
+    {% for t in tickets %}
+    <li class="ticket-card {% if t.is_closed %}is-closed{% else %}is-open{% endif %}">
+      <header class="ticket-top">
+        <span class="mono ticket-no">拼配单 #{{ t.pk }}</span>
+        {% if t.is_closed %}
+        <span class="badge blend-released">已结案 {{ t.closedAt|date:"Y-m-d H:i" }}</span>
+        {% else %}
+        <span class="badge blend-locked">未结案 · 锁定中</span>
+        {% endif %}
+      </header>
+      <dl class="kv">
+        <dt>拼配日</dt><dd class="mono">{{ t.blendDate|date:"Y-m-d" }}</dd>
+        <dt>目标品级</dt><dd>{{ t.targetGrade }}</dd>
+        <dt>计划总重</dt><dd class="mono">{{ t.plannedTotalKg }} kg</dd>
+        <dt>计入合计</dt><dd class="mono">{{ t.counted_total_kg }} kg</dd>
+        <dt>开单人</dt><dd>{{ t.openedBy.username }}</dd>
+        {% if t.is_closed %}
+        <dt>结案人</dt><dd>{{ t.closedBy.username }}</dd>
+        {% endif %}
+      </dl>
+      <ol class="blend-lines">
+        {% for line in t.lines.all %}
+        <li>
+          <span class="mono">{{ line.resinLot.lotCode }}</span>
+          <span class="mono">{{ line.countedKg }} kg</span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% if not t.is_closed %}
+        {% if request.user.is_staff %}
+        <form method="post" action="{% url 'blend_ticket_close' t.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn-ember">主管结案 · 解锁来脂批</button>
+        </form>
+        {% else %}
+        <p class="hint">待主管结案后，明细来脂批才能挂灶开值守。</p>
+        {% endif %}
+      {% endif %}
+    </li>
+    {% empty %}
+    <li class="lot-card empty">暂无拼配单</li>
+    {% endfor %}
+  </ol>
+</div>
+{% endblock %}

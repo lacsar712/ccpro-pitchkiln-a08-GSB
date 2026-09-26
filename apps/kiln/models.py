@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.conf import settings
 from django.db import models
 
 
@@ -107,3 +110,87 @@ class SoftPointProbe(models.Model):
 
     def __str__(self):
         return f"{self.softPointC}℃ by {self.samplerName}"
+
+
+class BlendTicket(models.Model):
+    """脂液拼配单单头：结案前明细内来脂批锁定，结案后才可挂灶开值守。"""
+
+    blendDate = models.DateField("拼配日")
+    targetGrade = models.CharField("目标品级", max_length=80)
+    plannedTotalKg = models.DecimalField(
+        "计划总重(kg)", max_digits=10, decimal_places=2
+    )
+    openedBy = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="opened_blend_tickets",
+        verbose_name="开单人",
+    )
+    openedAt = models.DateTimeField("开单时刻", auto_now_add=True)
+    closedBy = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="closed_blend_tickets",
+        verbose_name="结案人",
+        null=True,
+        blank=True,
+    )
+    closedAt = models.DateTimeField("结案时刻", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-openedAt", "-id"]
+        verbose_name = "脂液拼配单"
+        verbose_name_plural = "脂液拼配单"
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(plannedTotalKg__gt=0),
+                name="blendticket_planned_total_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"拼配单#{self.pk} · {self.targetGrade}"
+
+    @property
+    def is_closed(self):
+        return self.closedAt is not None
+
+    def counted_total_kg(self):
+        """明细计入千克合计（配合 prefetch_related 使用无额外查询）。"""
+        return sum((line.countedKg for line in self.lines.all()), Decimal("0"))
+
+
+class BlendTicketLine(models.Model):
+    """拼配明细行：挂来脂批与计入千克。"""
+
+    ticket = models.ForeignKey(
+        BlendTicket,
+        on_delete=models.CASCADE,
+        related_name="lines",
+        verbose_name="拼配单",
+    )
+    resinLot = models.ForeignKey(
+        ResinLot,
+        on_delete=models.PROTECT,
+        related_name="blend_lines",
+        verbose_name="来脂批",
+    )
+    countedKg = models.DecimalField("计入千克", max_digits=10, decimal_places=2)
+
+    class Meta:
+        ordering = ["id"]
+        verbose_name = "拼配明细"
+        verbose_name_plural = "拼配明细"
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(countedKg__gt=0),
+                name="blendticketline_counted_positive",
+            ),
+            models.UniqueConstraint(
+                fields=["ticket", "resinLot"],
+                name="blendticketline_unique_lot_per_ticket",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.resinLot.lotCode} × {self.countedKg}kg"

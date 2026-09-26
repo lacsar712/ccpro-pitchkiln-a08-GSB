@@ -7,7 +7,7 @@ from .models import CookRun, FireHearth, ResinLot, SoftPointProbe
 
 
 def ensure_seed_data():
-    """幂等种子：账号 + 来脂批 / 灶台 / 值守 / 探针。"""
+    """幂等种子：账号 + 来脂批 / 灶台 / 值守 / 探针；末两批留作可拼配。"""
     User = get_user_model()
 
     if not User.objects.filter(username="admin").exists():
@@ -38,6 +38,19 @@ def ensure_seed_data():
         originPlace="松脂坳西岔",
         arrivalKg=Decimal("980.00"),
         receivedAt=now - timezone.timedelta(hours=10),
+    )
+    # 两批可拼：不挂任何值守 / 拼配单，供开拼配单演示
+    ResinLot.objects.create(
+        lotCode="脂-松脂坳-2410D",
+        originPlace="松脂坳南坪",
+        arrivalKg=Decimal("1250.00"),
+        receivedAt=now - timezone.timedelta(hours=5),
+    )
+    ResinLot.objects.create(
+        lotCode="脂-桐油坑-2410E",
+        originPlace="桐油坑岭尾",
+        arrivalKg=Decimal("760.00"),
+        receivedAt=now - timezone.timedelta(hours=2),
     )
 
     h1 = FireHearth.objects.create(
