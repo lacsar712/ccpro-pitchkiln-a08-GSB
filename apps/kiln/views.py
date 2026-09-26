@@ -1,15 +1,24 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db.models import Prefetch
+from django.db import transaction
+from django.db.models import Prefetch, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .forms import OpenCookRunForm, PhaseChangeForm, ResinLotForm, SoftPointProbeForm
-from .models import CookRun, FireHearth, ResinLot
+from .forms import (
+    BlendLineFormSet,
+    BlendTicketForm,
+    OpenCookRunForm,
+    PhaseChangeForm,
+    ResinLotForm,
+    SoftPointProbeForm,
+)
+from .models import BlendTicket, CookRun, FireHearth, ResinLot
+from .services import blend_rules
 from .services.floor_rules import change_hearth_phase
 
 
@@ -207,5 +216,60 @@ def resin_lot_feed(request):
             }
         )
 
-    lots = ResinLot.objects.all()[:40]
+    lots = list(ResinLot.objects.all()[:40])
+    locks = blend_rules.lock_map(lots)
+    for lot in lots:
+        lot.blend_lock = locks.get(lot.pk)
     return render(request, "resin/feed.html", {"lots": lots, "form": form})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def blend_board(request):
+    """脂液拼配：开单（单头 + 明细）与单据列表。"""
+    if request.method == "POST":
+        form = BlendTicketForm(request.POST)
+        header_ok = form.is_valid()
+        planned = form.cleaned_data.get("plannedTotalKg") if header_ok else None
+        line_formset = BlendLineFormSet(request.POST, planned_total=planned)
+        if header_ok and line_formset.is_valid():
+            with transaction.atomic():
+                ticket = form.save(commit=False)
+                ticket.createdBy = request.user
+                ticket.save()
+                line_formset.instance = ticket
+                line_formset.save()
+            messages.success(
+                request, f"拼配单 #{ticket.pk} 已开立，明细来脂批已拼配锁定"
+            )
+            return redirect("blend_board")
+    else:
+        form = BlendTicketForm()
+        line_formset = BlendLineFormSet()
+
+    tickets = (
+        BlendTicket.objects.select_related("createdBy")
+        .prefetch_related("lines__resinLot")
+        .annotate(lines_total=Sum("lines__countedKg"))
+    )
+    return render(
+        request,
+        "blend/board.html",
+        {"form": form, "line_formset": line_formset, "tickets": tickets},
+    )
+
+
+@login_required
+@require_POST
+def blend_close(request, pk):
+    """主管结案：结案核验与开灶挂批核验同源于 blend_rules。"""
+    ticket = get_object_or_404(BlendTicket, pk=pk)
+    try:
+        blend_rules.close_ticket(ticket, request.user)
+        messages.success(
+            request, f"拼配单 #{ticket.pk} 已结案，明细来脂批解除锁定，可挂灶开值守"
+        )
+    except ValidationError as exc:
+        for msg in exc.messages:
+            messages.error(request, msg)
+    return redirect("blend_board")

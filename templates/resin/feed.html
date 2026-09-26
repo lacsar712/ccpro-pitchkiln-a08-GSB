@@ -19,13 +19,19 @@
 
   <ol class="lot-feed">
     {% for lot in lots %}
-    <li class="lot-card">
+    <li class="lot-card {% if lot.blend_lock %}locked{% endif %}">
       <div class="lot-code mono">{{ lot.lotCode }}</div>
       <div class="lot-place">{{ lot.originPlace }}</div>
       <div class="lot-meta">
         <span class="mono">{{ lot.arrivalKg }} kg</span>
         <span>{{ lot.receivedAt|date:"Y-m-d H:i" }}</span>
       </div>
+      {% if lot.blend_lock %}
+      <div class="lot-lock">
+        <span class="badge lock">拼配锁定 · 单 #{{ lot.blend_lock.pk }}</span>
+        <span class="hint">结案前禁止开新值守</span>
+      </div>
+      {% endif %}
     </li>
     {% empty %}
     <li class="lot-card empty">暂无来脂批</li>

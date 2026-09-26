@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}脂液拼配{% endblock %}
+{% block content %}
+<section class="feed-head">
+  <div>
+    <h1>脂液拼配</h1>
+    <p class="board-sub">拼配单未结案期间，明细内来脂批禁止再开新值守</p>
+  </div>
+  <a class="back-link" href="{% url 'home' %}">← 回值守看板</a>
+</section>
+
+<div class="feed-layout">
+  <form method="post" class="lot-intake stack-form">
+    {% csrf_token %}
+    <h2>开拼配单</h2>
+    {{ form.non_field_errors }}
+    {{ form.as_p }}
+    <h3 class="lines-head">明细行 · 来脂批 + 计入千克</h3>
+    {{ line_formset.management_form }}
+    {{ line_formset.non_form_errors }}
+    {% for lform in line_formset %}
+    <fieldset class="line-row">
+      {{ lform.as_p }}
+    </fieldset>
+    {% endfor %}
+    <p class="hint">计入千克合计须精确等于计划总重；单批计入不得大于到货千克。</p>
+    <button type="submit" class="btn-ember">开立拼配单</button>
+  </form>
+
+  <div class="blend-side">
+    <section class="rule-note">
+      <h2>结案前后差异</h2>
+      <ul>
+        <li><strong>未结案（结案时刻留空）</strong>：明细来脂批即「拼配锁定」——禁止挂灶开新值守，也不得再进另一张未结案单；来脂批卡片同步标注。</li>
+        <li><strong>主管结案后</strong>：写入结案时刻，锁定解除，这些批才允许挂灶开值守。结案核验与开灶挂批核验同源（services/blend_rules）。</li>
+      </ul>
+    </section>
+
+    <ol class="ticket-feed">
+      {% for t in tickets %}
+      <li class="ticket-card {% if t.is_closed %}closed{% else %}open{% endif %}">
+        <div class="ticket-head">
+          <span class="ticket-no mono">拼配单 #{{ t.pk }}</span>
+          {% if t.is_closed %}
+          <span class="badge ticket-closed">已结案</span>
+          {% else %}
+          <span class="badge ticket-open">未结案 · 锁定中</span>
+          {% endif %}
+        </div>
+        <dl class="kv">
+          <dt>拼配日</dt><dd class="mono">{{ t.blendDate|date:"Y-m-d" }}</dd>
+          <dt>目标品级</dt><dd>{{ t.targetGrade }}</dd>
+          <dt>计划总重</dt><dd class="mono">{{ t.plannedTotalKg }} kg</dd>
+          <dt>开单人</dt><dd>{{ t.createdBy.username }}</dd>
+          <dt>结案时刻</dt>
+          <dd class="mono">{% if t.is_closed %}{{ t.closedAt|date:"Y-m-d H:i" }}{% else %}— 留空待结案{% endif %}</dd>
+        </dl>
+        <ol class="ticket-lines">
+          {% for line in t.lines.all %}
+          <li>
+            <span class="mono">{{ line.resinLot.lotCode }}</span>
+            <span class="mono">{{ line.countedKg }} kg</span>
+            <span class="muted">/ 到货 {{ line.resinLot.arrivalKg }} kg</span>
+          </li>
+          {% endfor %}
+        </ol>
+        {% if t.is_closed %}
+        <p class="hint">计入合计 {{ t.lines_total }} kg · 已结案，明细批可挂灶开值守</p>
+        {% else %}
+        <p class="hint">计入合计 {{ t.lines_total }} kg · 结案前以上来脂批禁止开新值守</p>
+          {% if user.is_superuser %}
+          <form method="post" action="{% url 'blend_close' t.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-ember">主管结案</button>
+          </form>
+          {% else %}
+          <p class="hint">仅主管可结案</p>
+          {% endif %}
+        {% endif %}
+      </li>
+      {% empty %}
+      <li class="lot-card empty">暂无拼配单</li>
+      {% endfor %}
+    </ol>
+  </div>
+</div>
+{% endblock %}

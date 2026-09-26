@@ -6,8 +6,25 @@ from django.utils import timezone
 from .models import CookRun, FireHearth, ResinLot, SoftPointProbe
 
 
+def _ensure_blendable_lots(now):
+    """两批可拼来脂批：不挂值守、不进拼配单，供脂液拼配开单演示。"""
+    specs = [
+        ("脂-松脂坳-2409D", "松脂坳南坪", "1500.00", timezone.timedelta(hours=20)),
+        ("脂-桐油坑-2409E", "桐油坑槽坊", "1100.00", timezone.timedelta(hours=8)),
+    ]
+    for code, place, kg, age in specs:
+        ResinLot.objects.get_or_create(
+            lotCode=code,
+            defaults={
+                "originPlace": place,
+                "arrivalKg": Decimal(kg),
+                "receivedAt": now - age,
+            },
+        )
+
+
 def ensure_seed_data():
-    """幂等种子：账号 + 来脂批 / 灶台 / 值守 / 探针。"""
+    """幂等种子：账号 + 来脂批 / 灶台 / 值守 / 探针 + 两批可拼来脂批。"""
     User = get_user_model()
 
     if not User.objects.filter(username="admin").exists():
@@ -16,10 +33,11 @@ def ensure_seed_data():
     if not User.objects.filter(username="worker").exists():
         User.objects.create_user("worker", "worker@pitchkiln.local", "123456")
 
+    now = timezone.now()
+    _ensure_blendable_lots(now)
+
     if FireHearth.objects.exists():
         return
-
-    now = timezone.now()
 
     lot_a = ResinLot.objects.create(
         lotCode="脂-松脂坳-2409A",

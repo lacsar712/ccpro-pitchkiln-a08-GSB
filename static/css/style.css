@@ -617,3 +617,100 @@ body {
   .feed-layout { grid-template-columns: 1fr; }
   .lane-row { grid-template-columns: 40px 1fr; }
 }
+
+/* —— blend tickets（脂液拼配） —— */
+.errorlist {
+  color: #f87171;
+  font-size: 0.78rem;
+  margin: 0 0 0.55rem;
+  padding-left: 1.1rem;
+}
+
+.badge.lock { color: #f87171; }
+.badge.ticket-open { color: #fbbf24; }
+.badge.ticket-closed { color: var(--ok); }
+
+.lines-head {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--cinder);
+  letter-spacing: 0.04em;
+}
+
+.line-row {
+  border: 1px dashed #3f342a;
+  padding: 0.55rem 0.6rem 0.1rem;
+  margin: 0 0 0.55rem;
+}
+
+.blend-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.rule-note {
+  background: var(--soot-2);
+  border: 1px solid #3f342a;
+  padding: 0.85rem 1rem;
+  font-size: 0.8rem;
+}
+
+.rule-note h2 { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.rule-note ul { margin: 0; padding-left: 1.1rem; color: var(--steel); }
+.rule-note li { margin-bottom: 0.35rem; }
+.rule-note strong { color: var(--cinder); }
+
+.ticket-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ticket-card {
+  background: #161310;
+  border: 1px solid #2e261f;
+  padding: 0.75rem 0.85rem;
+}
+
+.ticket-card.open { border-left: 3px solid #fbbf24; }
+.ticket-card.closed { border-left: 3px solid var(--ok); opacity: 0.85; }
+
+.ticket-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ticket-no { font-weight: 700; font-size: 0.9rem; }
+
+.ticket-lines {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0 0;
+  border-top: 1px dashed #2e261f;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ticket-card .hint { margin: 0 0 0.5rem; }
+
+.lot-card.locked { border-color: #7f1d1d; }
+.lot-card.locked::before { background: var(--drawing); }
+
+.lot-lock {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.lot-lock .hint { margin: 0; }
